@@ -1,0 +1,1280 @@
+#ergasia karli analytics practicum 2
+# 12/05/2024
+#_______________________________________________________________________________________________________________________________________
+
+#The Programme for International Student Assessment (PISA) is an international survey which aims to evaluate education systems worldwide
+#by testing the skills and knowledge of 15-year-old students.
+#It is conducted every three years by the Organisation for Economic Co-operation and Development (OECD).
+#In 2018, as in other PISA years, the assessment focused on reading, mathematics, and science.
+
+#_______________________________________________________________________________________________________________________________________
+#install.packages("rnaturalearth")
+#install.packages("sf")
+#install.packages("ggplot2")
+#install.packages("dplyr")
+#install.packages("rnaturalearthdata")
+#install.packages("patchwork")
+#install.packages("GGally")
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(sf)
+library(ggplot2)
+library(dplyr)
+library(readr)
+library(tidyr)
+library(grid)
+library(gridExtra)
+library(cowplot)
+library(patchwork)
+library(GGally)
+
+rm(list = ls())
+
+# Set the working directory to the folder containing the .Rdata file
+setwd("D:/analytics practicum 2/pisa2018")
+# Load the .Rdata file
+load("pisa2018.Rdata")
+# List all variables loaded
+print(ls())
+
+str(newdata)
+summary(newdata)
+
+na_counts <- newdata %>%
+  summarise(across(everything(), ~sum(is.na(.))))
+na_counts
+# exw 6120004 παρατηρησεις και η μεταβλητη ( GLCM) με τα περισσόετρα ΝΑ εχει 365254 , αυτη την μεταβλητη θα την αφαιρεσω και μετα θα κάνω remove τα ΝΑ ,ωστε να μην διώξω τόσες παρατηρησεις
+
+
+# Remove the GLCM variable ,handle missing data, renaming variables for clarity
+data_clean <- newdata %>%
+  select(
+    CountryID = CNTRYID,       # Country ID
+    Country = CNT,             # Country name
+    SchoolID = CNTSCHID,       # School ID
+    StudentID = CNTSTUID,      # Student ID
+    GradeLevel = ST001D01T,    # Grade level
+    BirthMonth = ST003D02T,    # Month of birth
+    BirthYear = ST003D03T,     # Year of birth
+    Gender = ST004D01T,        # Gender
+    MotherEducation = ST005Q01TA, # Mother's education level
+    FatherEducation = ST007Q01TA, # Father's education level
+    MathScore = MATH,          # Math score
+    ReadingScore = READ,       # Reading score
+    ScienceScore = SCIE        # Science score
+  ) %>%
+  mutate(across(where(is.factor), as.character)) %>%
+  filter(!is.na(MathScore) & !is.na(ReadingScore) & !is.na(ScienceScore))
+
+
+str(data_clean)   # ok i don;t remove a lot of observes ,606627 remain
+
+greece_data <- data_clean %>% filter(Country == "Greece")
+str(greece_data)
+
+
+############################################################################################################################
+############################################################################################################################
+############################################################################################################################
+############################################################################################################################
+
+# 1) MAP
+
+# Load natural earth world map data
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+# Aggregate the PISA data to get average scores by country
+pisa_scores <- data_clean %>%
+  group_by(Country) %>%
+  summarise(
+    AvgMathScore = mean(MathScore, na.rm = TRUE),
+    AvgReadingScore = mean(ReadingScore, na.rm = TRUE),
+   AvgScienceScore = mean(ScienceScore, na.rm = TRUE)
+ )
+
+# Merge this data with the world map
+world_data <- merge(world, pisa_scores, by.x = "name", by.y = "Country", all.x = TRUE)
+
+# Define both latitude and longitude limits
+latitude_limits <- c(-60, 90)  # Adjust as needed to cut more or less
+longitude_limits <- c(-135, 180)  # Adjust these values to cut from the left
+
+# Adjusting the ggplot code to crop from the left and remove the subtitle and enlarge the legend
+ggplot(data = world_data) +
+  geom_sf(aes(fill = AvgMathScore), color = "white") +
+  scale_fill_viridis_c(
+    name = "Average Math Score",
+    option = "plasma",
+    na.value = "grey50",  # Color for countries with no data
+    limits = c(300, 600),
+    breaks = seq(300, 600, 50),
+    guide = guide_colourbar(title.position = "top", title.hjust = 0.5, label.position = "bottom", barwidth = 20, barheight = 1) # Enlarged legend
+  ) +
+  labs(title = "Average Math Scores by Country") +  # Removed subtitle
+  coord_sf(xlim = longitude_limits, ylim = latitude_limits) +  # Apply both latitude and longitude limits
+  theme_minimal() +
+  theme(legend.position = "bottom", legend.text = element_text(size = 12), legend.title = element_text(size = 14)) # Enlarging legend text
+
+
+# Plot for Average Reading Scores
+plot_reading <- ggplot(data = world_data) +
+  geom_sf(aes(fill = AvgReadingScore), color = "white") +
+  scale_fill_viridis_c(
+    name = "Average Reading Score",
+    option = "plasma",
+    na.value = "grey50",  # Color for countries with no data
+    limits = c(300, 600),
+    breaks = seq(300, 600, 50),
+    guide = guide_colourbar(title.position = "top", title.hjust = 0.5, label.position = "bottom", barwidth = 20, barheight = 1) # Enlarged legend
+  ) +
+  labs(title = "Average Reading Scores by Country") +  # Removed subtitle
+  coord_sf(xlim = longitude_limits, ylim = latitude_limits) +  # Apply both latitude and longitude limits
+  theme_minimal() +
+  theme(legend.position = "bottom", legend.text = element_text(size = 12), legend.title = element_text(size = 14)) # Enlarging legend text
+
+# Plot for Average Science Scores
+plot_science <- ggplot(data = world_data) +
+  geom_sf(aes(fill = AvgScienceScore), color = "white") +
+  scale_fill_viridis_c(
+    name = "Average Science Score",
+    option = "plasma",
+    na.value = "grey50",  # Color for countries with no data
+    limits = c(300, 600),
+    breaks = seq(300, 600, 50),
+    guide = guide_colourbar(title.position = "top", title.hjust = 0.5, label.position = "bottom", barwidth = 20, barheight = 1) # Enlarged legend
+  ) +
+  labs(title = "Average Science Scores by Country") +  # Removed subtitle
+  coord_sf(xlim = longitude_limits, ylim = latitude_limits) +  # Apply both latitude and longitude limits
+  theme_minimal() +
+  theme(legend.position = "bottom", legend.text = element_text(size = 12), legend.title = element_text(size = 14)) # Enlarging legend text
+
+
+
+
+
+#_____________________________________________________________________________________________________________________________________________
+
+# 2) Boxplot of Reading , math score , Scie Scores by Country
+
+
+
+median_score <- median(data_clean$ReadingScore, na.rm = TRUE)
+
+
+data_clean$color <- ifelse(data_clean$Country == "Greece", "Cyan", "gray")
+
+
+plot <- ggplot(data_clean, aes(x = reorder(Country, -ReadingScore, median), y = ReadingScore, fill = color)) +
+  geom_boxplot() +  # Use the 'color' column for the fill aesthetic
+  scale_fill_identity() +  # Use the actual color names stored in 'color' column
+  coord_flip() +
+  geom_hline(yintercept = median_score, color = "red", size = 1) +
+  theme(axis.text.x = element_text(angle = 0, hjust = 1, size = 10, vjust = 0.5),  # Adjust text alignment if needed and increase size
+        legend.position = "none",
+        axis.ticks.length = unit(0.5, "cm"),
+        panel.spacing.y = unit(2, "lines"),  # Increase the spacing slightly more if needed
+        panel.grid.major.y = element_line(color = "grey", size = 0.5),
+        panel.grid.minor.y = element_blank(),
+        panel.background = element_rect(fill = "white", colour = NA),
+        plot.background = element_rect(fill = "white", colour = NA)) +
+  labs(title = "Reading Scores Across Countries", x = "", y = "Reading Score")
+
+print(plot)
+
+
+ggsave("Reading_Scores_Boxplot.png", plot = plot, width = 10, height = 15, dpi = 300)
+
+#__________________________________________________________________
+
+#  median Math score
+median_math <- median(data_clean$MathScore, na.rm = TRUE)
+
+
+data_clean$color_math <- ifelse(data_clean$Country == "Greece", "Cyan", "gray")
+
+
+math_plot <- ggplot(data_clean, aes(x = reorder(Country, -MathScore, median), y = MathScore, fill = color_math)) +
+  geom_boxplot() +
+  scale_fill_identity() +
+  coord_flip() +
+  geom_hline(yintercept = median_math, color = "red", size = 1) +
+  theme(
+    axis.text.x = element_text(angle = 0, hjust = 1, size = 10, vjust = 0.5),
+    legend.position = "none",
+    axis.ticks.length = unit(0.5, "cm"),
+    panel.spacing.y = unit(2, "lines"),
+    panel.grid.major.y = element_line(color = "grey", size = 0.5),
+    panel.grid.minor.y = element_blank(),
+    panel.background = element_rect(fill = "white", colour = NA),
+    plot.background = element_rect(fill = "white", colour = NA)
+  ) +
+  labs(title = "Math Scores Across Countries", x = "", y = "Math Score")
+
+print(math_plot)
+
+
+ggsave("Math_Scores_Boxplot.png", plot = math_plot, width = 10, height = 15, dpi = 300)
+#_____________________________________________________________________________________________
+
+#  median Science score
+median_science <- median(data_clean$ScienceScore, na.rm = TRUE)
+
+# highlight Greece
+data_clean$color_science <- ifelse(data_clean$Country == "Greece", "Cyan", "gray")
+
+
+science_plot <- ggplot(data_clean, aes(x = reorder(Country, -ScienceScore, median), y = ScienceScore, fill = color_science)) +
+  geom_boxplot() +
+  scale_fill_identity() +
+  coord_flip() +
+  geom_hline(yintercept = median_science, color = "red", size = 1) +
+  theme(
+    axis.text.x = element_text(angle = 0, hjust = 1, size = 10, vjust = 0.5),
+    legend.position = "none",
+    axis.ticks.length = unit(0.5, "cm"),
+    panel.spacing.y = unit(2, "lines"),
+    panel.grid.major.y = element_line(color = "grey", size = 0.5),
+    panel.grid.minor.y = element_blank(),
+    panel.background = element_rect(fill = "white", colour = NA),
+    plot.background = element_rect(fill = "white", colour = NA)
+  ) +
+  labs(title = "Science Scores Across Countries", x = "", y = "Science Score")
+
+print(science_plot)
+
+
+ggsave("Science_Scores_Boxplot.png", plot = science_plot, width = 10, height = 15, dpi = 300)
+
+
+#___________________________________________________________________________________________________________________________________________________
+
+#3) Faceted Histogram of Scores by Country for Comparison with Greece
+
+# Filter Data for Key Countries
+key_countries <- c("Greece", "United States", "Hong Kong", "Singapore", "Philippines", "Germany", "United Kingdom", "Sweden", "Brazil")
+filtered_data <- data_clean %>% filter(Country %in% key_countries)
+
+# Create Faceted Density Plots for Math, Reading, and Science Scores
+density_plot <- ggplot(filtered_data) +
+  geom_density(aes(x = MathScore, fill = "Math Score"), alpha = 0.2, color = "blue", size = 1.5) +
+  geom_density(aes(x = ReadingScore, fill = "Reading Score"), alpha = 0.2, color = "hotpink", size = 1.5) +
+  geom_density(aes(x = ScienceScore, fill = "Science Score"), alpha = 0.2, color = "green", size = 0.8) +
+  facet_wrap(~ Country, scales = "free") +
+  scale_fill_manual(
+    values = c("Math Score" = "blue", "Reading Score" = "hotpink", "Science Score" = "green"),
+    guide = guide_legend(override.aes = list(alpha = 1, color = NA))
+  ) +
+  ggtitle("Density of Math, Reading, and Science Scores in some Countries") +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    legend.key = element_rect(color = "white")  # Set legend key border to white to hide it
+  ) +
+  labs(fill = " ")
+
+# Print the plot
+print(density_plot)
+
+#____________________________________________________________________________________________________________________________________________
+
+#4)
+
+rankings_data <- pisa_scores %>%
+  select(Country, AvgMathScore, AvgReadingScore, AvgScienceScore)
+
+rankings_long <- rankings_data %>%
+  pivot_longer(
+    cols = c(AvgMathScore, AvgReadingScore, AvgScienceScore),
+    names_to = "Subject",
+    values_to = "Score"
+  )
+
+subject_labels <- c(
+  AvgMathScore = "Average Math Score",
+  AvgReadingScore = "Average Reading Score",
+  AvgScienceScore = "Average Science Score"
+)
+
+# combined plot
+combined_plot <- ggplot(rankings_long, aes(x = reorder(Country, Score), y = Score, fill = Subject)) +
+  geom_bar(stat = "identity", position = "dodge", alpha = 0.4) +  # Adjust alpha for transparency
+  coord_flip() +  # Flipping coordinates for better readability
+  facet_wrap(~ Subject, scales = "free_x", nrow = 1, labeller = as_labeller(subject_labels)) +  # Create facets for each subject
+  labs(title = "International Ranking of Scores", x = "Country", y = "Average Score") +
+  scale_fill_manual(values = c("AvgMathScore" = "blue", "AvgReadingScore" = "hotpink", "AvgScienceScore" = "green")) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",  # Remove legend
+    panel.background = element_rect(fill = "white", color = "white"),  # Set panel background to white
+    plot.background = element_rect(fill = "white", color = "white")  # Set plot background to white
+  ) +
+  geom_hline(yintercept = 400, color = "black", size = 1) +  # Add thick horizontal line at 400
+  geom_hline(yintercept = 500, color = "black", size = 1) +  # Add thick horizontal line at 500
+  geom_hline(yintercept = 600, color = "black", size = 1)    # Add thick horizontal line at 600
+
+
+print(combined_plot)
+
+# Save the plot
+ggsave("4.png", plot = combined_plot, width = 15, height = 15, dpi = 300, bg = "white")
+
+
+#________________________________________________________________________________________________________________
+
+#5) Line Graph of Score Distributions Across Grades in Greece for comaprison with Europe , United states , ASIA
+
+europe_countries <- c("Albania", "Austria", "Belgium", "Bosnia and Herzegovina", "Bulgaria", "Croatia", "Cyprus", "Czech Republic",
+                      "Denmark", "Estonia", "Finland", "France", "Germany", "Hungary", "Iceland", "Ireland", "Italy",
+                      "Kosovo", "Latvia", "Lithuania", "Luxembourg", "Malta", "Moldova", "Montenegro", "Netherlands", "North Macedonia",
+                      "Norway", "Poland", "Portugal", "Romania", "Russia", "Serbia", "Slovakia", "Slovenia", "Spain", "Sweden",
+                      "Switzerland", "Turkey", "Ukraine", "United Kingdom")
+
+asia_countries <- c("China", "India", "Indonesia", "Japan", "Kazakhstan", "Korea", "Malaysia", "Philippines", "Qatar", "Saudi Arabia",
+                    "Singapore", "Taiwan", "Thailand", "Vietnam")
+
+usa_countries <- c("United States")
+
+# calculate average scores by grade level
+calculate_avg_scores <- function(data, region_countries, region_name, score_col) {
+  data %>%
+    filter(Country %in% region_countries) %>%
+    group_by(GradeLevel) %>%
+    summarise(AvgScore = mean(.data[[score_col]], na.rm = TRUE)) %>%
+    mutate(Region = region_name)
+}
+
+# Calculate average scores for each region
+calculate_all_scores <- function(data, score_col) {
+  greece_scores <- calculate_avg_scores(data, c("Greece"), "Greece", score_col)
+  europe_scores <- calculate_avg_scores(data, europe_countries, "Europe", score_col)
+  asia_scores <- calculate_avg_scores(data, asia_countries, "Asia", score_col)
+  usa_scores <- calculate_avg_scores(data, usa_countries, "USA", score_col)
+
+  bind_rows(greece_scores, europe_scores, asia_scores, usa_scores) %>%
+    filter(!GradeLevel %in% c("Invalid", "Ungraded")) %>%
+    mutate(GradeLevel = factor(GradeLevel, levels = c("Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12")))
+}
+
+# Combined plot function
+plot_scores <- function(combined_scores, title) {
+  ggplot(combined_scores, aes(x = GradeLevel, y = AvgScore, color = Region, group = Region)) +
+    geom_line(size = 1.2) +  # Increase line width
+    geom_point(size = 3) +  # Increase point size
+    ggtitle(title) +
+    labs(x = "Grade Level", y = "Average Score") +
+    theme_minimal() +
+    theme(
+      legend.title = element_blank(),  # Remove legend title
+      legend.position = "bottom",  # Position legend at the bottom
+      text = element_text(size = 12)  # Increase text size for better readability
+    )
+}
+
+#  Math scores
+math_scores <- calculate_all_scores(data_clean, "MathScore")
+p_math <- plot_scores(math_scores, "Average Math Scores Across Grades in Greece, Europe, USA, and Asia")
+print(p_math)
+ggsave("p_math.png", plot = p_math, width = 8, height = 5, dpi = 300, bg = "white")
+
+# Reading scores
+reading_scores <- calculate_all_scores(data_clean, "ReadingScore")
+p_reading <- plot_scores(reading_scores, "Average Reading Scores Across Grades in Greece, Europe, USA, and Asia")
+print(p_reading)
+ggsave("p_reading.png", plot = p_reading, width = 8, height = 5, dpi = 300, bg = "white")
+
+# Science scores
+science_scores <- calculate_all_scores(data_clean, "ScienceScore")
+p_science <- plot_scores(science_scores, "Average Science Scores Across Grades in Greece, Europe, USA, and Asia")
+print(p_science)
+ggsave("p_science.png", plot = p_science, width = 8, height = 5, dpi = 300, bg = "white")
+
+
+#___________________________________________________________________________________________________________________
+
+# 5.5) Scatter Plot of Science vs. Math Scores in Greece etc
+# Function to create pairs scatter plot for a region
+create_pairs_plot <- function(data, region_countries, region_name) {
+  region_data <- data %>%
+    filter(Country %in% region_countries) %>%
+    select(MathScore, ReadingScore, ScienceScore)
+
+  # Customize ggpairs to adjust correlation text size and remove significance stars
+  ggpairs(region_data,
+          title = paste("Pairs Scatter Plot for", region_name),
+          columnLabels = c("Math Score", "Reading Score", "Science Score"),
+          upper = list(continuous = wrap("cor", size = 6, alignPercent = 0.5, stars = FALSE)),
+          lower = list(continuous = "smooth")) +
+    theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5))
+}
+
+# Create pairs scatter plots for each region
+pairs_greece <- create_pairs_plot(data_clean, c("Greece"), "Greece")
+pairs_europe <- create_pairs_plot(data_clean, europe_countries, "Europe")
+pairs_asia <- create_pairs_plot(data_clean, asia_countries, "Asia")
+pairs_usa <- create_pairs_plot(data_clean, usa_countries, "USA")
+
+# Save the pairs scatter plots
+ggsave("Pairs_Scatter_Plots_Greece.png", plot = pairs_greece, width = 12, height = 10, dpi = 300, bg = "white")
+ggsave("Pairs_Scatter_Plots_Europe.png", plot = pairs_europe, width = 12, height = 10, dpi = 300, bg = "white")
+ggsave("Pairs_Scatter_Plots_Asia.png", plot = pairs_asia, width = 12, height = 10, dpi = 300, bg = "white")
+ggsave("Pairs_Scatter_Plots_USA.png", plot = pairs_usa, width = 12, height = 10, dpi = 300, bg = "white")
+
+#__________________________________________________________________________________________________________________________
+#5.6)
+scores_by_country_grade <- data_clean %>%
+  filter(!GradeLevel %in% c("Invalid", "Ungraded")) %>%
+  filter(!is.na(GradeLevel)) %>%
+  group_by(Country, GradeLevel) %>%
+  summarise(AvgScore = mean(MathScore, na.rm = TRUE))
+
+scores_by_country_grade$GradeLevel <- factor(scores_by_country_grade$GradeLevel, levels = c("Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"))
+
+selected_grade_levels <- c("Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12")
+scores_by_country_grade <- scores_by_country_grade %>%
+  filter(GradeLevel %in% selected_grade_levels)
+
+heatmap_plot <- ggplot(scores_by_country_grade, aes(x = GradeLevel, y = Country, fill = AvgScore)) +
+  geom_tile(color = "white") +  # Add white grid lines for better separation
+  scale_fill_gradient(low = "blue", high = "red", name = "Avg Score") +  # Add legend title
+  labs(title = "Heatmap of Average Math Scores by Country and Grade",
+       x = "Grade Level", y = "Country") +  # Add axis labels
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),  # Center and enlarge the title
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),  # Rotate x-axis labels for readability
+    axis.text.y = element_text(size = 10),  # Adjust y-axis text size
+    axis.title = element_text(size = 12),  # Adjust axis title size
+    legend.position = "bottom",  # Move the legend to the bottom
+    legend.title = element_text(size = 12),  # Adjust legend title size
+    legend.text = element_text(size = 10)  # Adjust legend text size
+  )
+
+heatmap_plot
+
+ggsave("Heatmap_Average_Math_Scores_by_Country_and_Grade.png", plot = heatmap_plot, width = 10, height = 15, dpi = 300, bg = "white")
+
+
+
+############################################################################################################################
+############################################################################################################################
+############################################################################################################################
+############################################################################################################################
+############################################################################################################################
+############################################################################################################################
+############################################################################################################################
+############################################################################################################################
+#GENDER ANALYSIS
+
+
+# 6)  Bar Chart of Average Scores by Gender in Greece
+
+
+
+# Function to calculate average scores by gender
+calculate_avg_scores_by_gender <- function(data, region_countries, region_name) {
+  data %>%
+    filter(Country %in% region_countries) %>%
+    group_by(Gender) %>%
+    summarise(AvgMath = mean(MathScore, na.rm = TRUE),
+              AvgReading = mean(ReadingScore, na.rm = TRUE),
+              AvgScience = mean(ScienceScore, na.rm = TRUE)) %>%
+    pivot_longer(cols = c(AvgMath, AvgReading, AvgScience), names_to = "Subject", values_to = "Score") %>%
+    mutate(Region = region_name)
+}
+
+# Calculate average scores by gender for each region
+greece_scores_gender <- calculate_avg_scores_by_gender(data_clean, c("Greece"), "Greece")
+europe_scores_gender <- calculate_avg_scores_by_gender(data_clean, europe_countries, "Europe")
+asia_scores_gender <- calculate_avg_scores_by_gender(data_clean, asia_countries, "Asia")
+usa_scores_gender <- calculate_avg_scores_by_gender(data_clean, usa_countries, "USA")
+
+# Create individual plots
+plot_greece <- ggplot(greece_scores_gender, aes(x = Subject, y = Score, fill = Gender)) +
+  geom_col(position = "dodge") +
+  scale_fill_manual(values = c("Female" = "pink", "Male" = "lightblue")) +
+  scale_x_discrete(labels = c("AvgMath" = "Average Math Score", "AvgReading" = "Average Reading Score", "AvgScience" = "Average Science Score")) +
+  ggtitle("Greece") +
+  labs(x = "", y = "Average Score") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+plot_europe <- ggplot(europe_scores_gender, aes(x = Subject, y = Score, fill = Gender)) +
+  geom_col(position = "dodge") +
+  scale_fill_manual(values = c("Female" = "pink", "Male" = "lightblue")) +
+  scale_x_discrete(labels = c("AvgMath" = "Average Math Score", "AvgReading" = "Average Reading Score", "AvgScience" = "Average Science Score")) +
+  ggtitle("Europe") +
+  labs(x = "", y = "Average Score") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+plot_asia <- ggplot(asia_scores_gender, aes(x = Subject, y = Score, fill = Gender)) +
+  geom_col(position = "dodge") +
+  scale_fill_manual(values = c("Female" = "pink", "Male" = "lightblue")) +
+  scale_x_discrete(labels = c("AvgMath" = "Average Math Score", "AvgReading" = "Average Reading Score", "AvgScience" = "Average Science Score")) +
+  ggtitle("Asia") +
+  labs(x = "", y = "Average Score") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+plot_usa <- ggplot(usa_scores_gender, aes(x = Subject, y = Score, fill = Gender)) +
+  geom_col(position = "dodge") +
+  scale_fill_manual(values = c("Female" = "pink", "Male" = "lightblue")) +
+  scale_x_discrete(labels = c("AvgMath" = "Average Math Score", "AvgReading" = "Average Reading Score", "AvgScience" = "Average Science Score")) +
+  ggtitle("USA") +
+  labs(x = "", y = "Average Score") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+# Function to extract the legend
+get_legend <- function(myggplot) {
+  tmp <- ggplot_gtable(ggplot_build(myggplot))
+  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+  legend <- tmp$grobs[[leg]]
+  return(legend)
+}
+
+# Extract the legend from one of the plots
+legend <- get_legend(plot_greece + theme(legend.position = "bottom"))
+
+# Combine the plots with the legend
+combined_plot2 <- plot_grid(
+  plot_greece + theme(legend.position = "none"),
+  plot_europe + theme(legend.position = "none"),
+  plot_asia + theme(legend.position = "none"),
+  plot_usa + theme(legend.position = "none"),
+  legend,
+  nrow = 3,
+  rel_heights = c(1, 1, 0.1)
+)
+
+
+combined_plot2
+
+# Save the combined plot
+ggsave("Average_Scores_by_Gender_Comparison.png", plot = combined_plot2, width = 12, height = 12, dpi = 300, bg = "white")
+
+
+
+#________________________________________________________________________________________________________________
+
+#7)
+
+
+# Function to create density plot for a region and subject
+create_density_plot <- function(data, region_countries, region_name, subject, subject_label) {
+  data %>%
+    filter(Country %in% region_countries) %>%
+    ggplot(aes_string(x = subject, fill = "Gender")) +
+    geom_density(alpha = 0.6) +
+    scale_fill_manual(values = c("Male" = "lightblue", "Female" = "pink")) +
+    ggtitle(paste("Density of", subject_label, "by Gender in", region_name)) +
+    theme_minimal() +
+    labs(x = subject_label, y = "Density")
+}
+
+# Create density plots for each region and subject
+create_plots_for_subject <- function(subject, subject_label) {
+  plot_greece <- create_density_plot(data_clean, c("Greece"), "Greece", subject, subject_label)
+  plot_europe <- create_density_plot(data_clean, europe_countries, "Europe", subject, subject_label)
+  plot_asia <- create_density_plot(data_clean, asia_countries, "Asia", subject, subject_label)
+  plot_usa <- create_density_plot(data_clean, usa_countries, "USA", subject, subject_label)
+
+  # Extract the legend from one of the plots
+  legend <- get_legend(plot_greece + theme(legend.position = "bottom"))
+
+  # Combine the plots with a shared legend
+  combined_plot <- plot_grid(
+    plot_greece + theme(legend.position = "none"),
+    plot_europe + theme(legend.position = "none"),
+    plot_asia + theme(legend.position = "none"),
+    plot_usa + theme(legend.position = "none"),
+    legend,
+    nrow = 3,
+    rel_heights = c(1, 1, 0.1)
+  )
+
+  return(combined_plot)
+}
+
+# Create plots for Math, Reading, and Science scores
+combined_plot_math <- create_plots_for_subject("MathScore", "Math Score")
+combined_plot_reading <- create_plots_for_subject("ReadingScore", "Reading Score")
+combined_plot_science <- create_plots_for_subject("ScienceScore", "Science Score")
+
+# Save the combined plots
+ggsave("Density_Math_Scores_by_Gender.png", plot = combined_plot_math, width = 12, height = 12, dpi = 300, bg = "white")
+ggsave("Density_Reading_Scores_by_Gender.png", plot = combined_plot_reading, width = 12, height = 12, dpi = 300, bg = "white")
+ggsave("Density_Science_Scores_by_Gender.png", plot = combined_plot_science, width = 12, height = 12, dpi = 300, bg = "white")
+
+#_____________________________________________________________________________________________________________________________
+
+#8)
+
+gender_data <- data_clean %>%
+  pivot_longer(
+    cols = c(MathScore, ReadingScore, ScienceScore),
+    names_to = "Subject",
+    values_to = "Score"
+  ) %>%
+  select(Country, Gender, Subject, Score) %>%
+  filter(!is.na(Gender))
+
+gender_data$Subject <- sub("Score", "", gender_data$Subject)
+
+gender_plot <- ggplot(gender_data, aes(x = Subject, y = Score, fill = Gender)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("Male" = "lightblue", "Female" = "pink")) +
+  labs(title = "Global Gender Gap in Educational Performance", x = " ", y = "Score") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    text = element_text(size = 12)
+  )
+
+gender_plot
+ggsave("Global_Gender_Gap_Educational_Performance.png", plot = gender_plot, width = 10, height = 7, dpi = 300, bg = "white")
+
+
+#_______________________________________________________________________________________________________
+
+
+#9)
+
+
+# Filter and summarize data for the first five mother's education levels
+global_mother_edu <- data_clean %>%
+  pivot_longer(cols = c(MathScore, ReadingScore, ScienceScore), names_to = "Subject", values_to = "Score") %>%
+  group_by(MotherEducation, Subject) %>%
+  summarise(AverageScore = mean(Score, na.rm = TRUE), .groups = 'drop') %>%
+  filter(MotherEducation %in% unique(MotherEducation)[1:5])  # Select only the first five groups
+
+# Define custom colors for subjects
+subject_colors <- c("MathScore" = "blue", "ReadingScore" = "hotpink", "ScienceScore" = "green")
+
+# Plotting
+ggplot(global_mother_edu, aes(x = MotherEducation, y = AverageScore, fill = Subject)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.9), color = "black", alpha = 0.4) +  # Adjust bar spacing, add border, and set alpha
+  scale_fill_manual(values = subject_colors, labels = c("Math Score", "Reading Score", "Science Score")) +  # Custom colors and labels
+  labs(title = "Impact of Mother's Education on Student Performance Worldwide",
+       x = "Mother's Education Level", y = "Average Score", fill = "Subject") +  # Add fill legend title
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),  # Center and enlarge the title
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),  # Rotate x-axis labels and adjust size
+    axis.text.y = element_text(size = 12),  # Adjust y-axis text size
+    axis.title = element_text(size = 14),  # Adjust axis title size
+    legend.position = "bottom",  # Move the legend to the bottom
+    legend.title = element_text(size = 12),  # Adjust legend title size
+    legend.text = element_text(size = 10)  # Adjust legend text size
+  )
+
+# Save the plot
+ggsave("Impact_of_Mothers_Education_on_Student_Performance_Worldwide.png", width = 12, height = 8, dpi = 300, bg = "white")
+#_______________________________________________________________________________________________________
+
+
+# Filter and summarize data for the first five father's education levels
+global_father_edu <- data_clean %>%
+  pivot_longer(cols = c(MathScore, ReadingScore, ScienceScore), names_to = "Subject", values_to = "Score") %>%
+  group_by(FatherEducation, Subject) %>%
+  summarise(AverageScore = mean(Score, na.rm = TRUE), .groups = 'drop') %>%
+  filter(FatherEducation %in% unique(FatherEducation)[1:5])  # Select only the first five groups
+
+# Define custom colors for subjects
+subject_colors <- c("MathScore" = "blue", "ReadingScore" = "hotpink", "ScienceScore" = "green")
+
+# Plotting
+ggplot(global_father_edu, aes(x = FatherEducation, y = AverageScore, fill = Subject)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.9), color = "black", alpha = 0.4) +  # Adjust bar spacing, add border, and set alpha
+  scale_fill_manual(values = subject_colors, labels = c("Math Score", "Reading Score", "Science Score")) +  # Custom colors and labels
+  labs(title = "Impact of Father's Education on Student Performance Worldwide",
+       x = "Father's Education Level", y = "Average Score", fill = "Subject") +  # Add fill legend title
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),  # Center and enlarge the title
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),  # Rotate x-axis labels and adjust size
+    axis.text.y = element_text(size = 12),  # Adjust y-axis text size
+    axis.title = element_text(size = 14),  # Adjust axis title size
+    legend.position = "bottom",  # Move the legend to the bottom
+    legend.title = element_text(size = 12),  # Adjust legend title size
+    legend.text = element_text(size = 10)  # Adjust legend text size
+  )
+
+# Save the plot
+ggsave("Impact_of_Fathers_Education_on_Student_Performance_Worldwide.png", width = 12, height = 8, dpi = 300, bg = "white")
+
+
+
+#_________________________________________________________________________________________________________________
+# Filter and summarize data for the first five mother's education levels in Greece
+greece_mother_edu <- data_clean %>%
+  filter(Country == "Greece") %>%
+  pivot_longer(cols = c(MathScore, ReadingScore, ScienceScore), names_to = "Subject", values_to = "Score") %>%
+  group_by(MotherEducation, Subject) %>%
+  summarise(AverageScore = mean(Score, na.rm = TRUE), .groups = 'drop') %>%
+  filter(MotherEducation %in% unique(MotherEducation)[1:5])  # Select only the first five groups
+
+# Define custom colors for subjects
+subject_colors <- c("MathScore" = "blue", "ReadingScore" = "hotpink", "ScienceScore" = "green")
+
+# Plotting
+ggplot(greece_mother_edu, aes(x = MotherEducation, y = AverageScore, fill = Subject)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.9), color = "black", alpha = 0.4) +  # Adjust bar spacing, add border, and set alpha
+  scale_fill_manual(values = subject_colors, labels = c("Math Score", "Reading Score", "Science Score")) +  # Custom colors and labels
+  labs(title = "Impact of Mother's Education on Student Performance in Greece",
+       x = "Mother's Education Level", y = "Average Score", fill = "Subject") +  # Add fill legend title
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),  # Center and enlarge the title
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),  # Rotate x-axis labels and adjust size
+    axis.text.y = element_text(size = 12),  # Adjust y-axis text size
+    axis.title = element_text(size = 14),  # Adjust axis title size
+    legend.position = "bottom",  # Move the legend to the bottom
+    legend.title = element_text(size = 12),  # Adjust legend title size
+    legend.text = element_text(size = 10)  # Adjust legend text size
+  )
+
+# Save the plot
+ggsave("Impact_of_Mothers_Education_on_Student_Performance_in_Greece.png", width = 12, height = 8, dpi = 300, bg = "white")
+
+#_____________________________________________________________________________
+
+
+# Filter and summarize data for the first five father's education levels in Greece
+greece_father_edu <- data_clean %>%
+  filter(Country == "Greece") %>%
+  pivot_longer(cols = c(MathScore, ReadingScore, ScienceScore), names_to = "Subject", values_to = "Score") %>%
+  group_by(FatherEducation, Subject) %>%
+  summarise(AverageScore = mean(Score, na.rm = TRUE), .groups = 'drop') %>%
+  filter(FatherEducation %in% unique(FatherEducation)[1:5])  # Select only the first five groups
+
+# Define custom colors for subjects
+subject_colors <- c("MathScore" = "blue", "ReadingScore" = "hotpink", "ScienceScore" = "green")
+
+# Plotting
+ggplot(greece_father_edu, aes(x = FatherEducation, y = AverageScore, fill = Subject)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.9), color = "black", alpha = 0.4) +  # Adjust bar spacing, add border, and set alpha
+  scale_fill_manual(values = subject_colors, labels = c("Math Score", "Reading Score", "Science Score")) +  # Custom colors and labels
+  labs(title = "Impact of Father's Education on Student Performance in Greece",
+       x = "Father's Education Level", y = "Average Score", fill = "Subject") +  # Add fill legend title
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),  # Center and enlarge the title
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),  # Rotate x-axis labels and adjust size
+    axis.text.y = element_text(size = 12),  # Adjust y-axis text size
+    axis.title = element_text(size = 14),  # Adjust axis title size
+    legend.position = "bottom",  # Move the legend to the bottom
+    legend.title = element_text(size = 12),  # Adjust legend title size
+    legend.text = element_text(size = 10)  # Adjust legend text size
+  )
+
+# Save the plot
+ggsave("Impact_of_Fathers_Education_on_Student_Performance_in_Greece.png", width = 12, height = 8, dpi = 300, bg = "white")
+
+#______________________________________________________________________________________________________
+
+#10)
+
+# Filter and summarize data for the selected countries and regions
+country_comparison <- data_clean %>%
+  mutate(Region = case_when(
+    Country %in% europe_countries ~ "Europe",
+    Country %in% asia_countries ~ "Asia",
+    Country %in% usa_countries ~ "USA",
+    Country == "Greece" ~ "Greece",
+    TRUE ~ "Other"
+  )) %>%
+  filter(Region %in% c("Greece", "Europe", "Asia", "USA")) %>%
+  filter(!is.na(MotherEducation) & !is.na(MathScore) & !is.na(ReadingScore) & !is.na(ScienceScore)) %>%
+  pivot_longer(cols = c(MathScore, ReadingScore, ScienceScore), names_to = "Subject", values_to = "Score") %>%
+  group_by(Region, MotherEducation, Subject) %>%
+  summarise(AverageScore = mean(Score, na.rm = TRUE), .groups = 'drop')
+
+# Define custom colors for each region
+region_colors <- c("Asia" = "#fb8072", "Europe" = "#b3de69", "Greece" = "#00ced1", "USA" = "#bc80bd")
+
+# Plotting
+ggplot(country_comparison, aes(x = MotherEducation, y = AverageScore, fill = Region)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.9), alpha = 0.4) +  # Remove border, adjust bar spacing, set alpha
+  scale_fill_manual(values = region_colors) +  # Custom colors for regions
+  labs(title = "Impact of Mother's Education on Student Performance between Greece, Europe, Asia, USA",
+       subtitle = " ",
+       x = "Mother's Education Level", y = "Average Score", fill = "Region") +  # Add fill legend title
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),  # Center and enlarge the title
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),  # Rotate x-axis labels and adjust size
+    axis.text.y = element_text(size = 12),  # Adjust y-axis text size
+    axis.title = element_text(size = 14),  # Adjust axis title size
+    legend.position = "bottom",  # Move the legend to the bottom
+    legend.title = element_text(size = 12),  # Adjust legend title size
+    legend.text = element_text(size = 10)  # Adjust legend text size
+  )
+
+# Save the plot
+ggsave("Comparison_of_Impact_of_Mothers_Education_on_Student_Performance.png", width = 12, height = 8, dpi = 300, bg = "white")
+#_________________________________________________________________________________________
+
+country_comparison_father <- data_clean %>%
+  mutate(Region = case_when(
+    Country %in% europe_countries ~ "Europe",
+    Country %in% asia_countries ~ "Asia",
+    Country %in% usa_countries ~ "USA",
+    Country == "Greece" ~ "Greece",
+    TRUE ~ "Other"
+  )) %>%
+  filter(Region %in% c("Greece", "Europe", "Asia", "USA")) %>%
+  filter(!is.na(FatherEducation) & !is.na(MathScore) & !is.na(ReadingScore) & !is.na(ScienceScore)) %>%
+  pivot_longer(cols = c(MathScore, ReadingScore, ScienceScore), names_to = "Subject", values_to = "Score") %>%
+  group_by(Region, FatherEducation, Subject) %>%
+  summarise(AverageScore = mean(Score, na.rm = TRUE), .groups = 'drop')
+
+# Define custom colors for each region
+region_colors <- c("Asia" = "#fb8072", "Europe" = "#b3de69", "Greece" = "#00ced1", "USA" = "#bc80bd")
+
+# Plotting
+ggplot(country_comparison_father, aes(x = FatherEducation, y = AverageScore, fill = Region)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.9), alpha = 0.4) +  # Remove border, adjust bar spacing, set alpha
+  scale_fill_manual(values = region_colors) +  # Custom colors for regions
+  labs(title = "Impact of Father's Education on Student Performance between Greece, Europe, Asia, USA",
+       subtitle = " ",
+       x = "Father's Education Level", y = "Average Score", fill = "Region") +  # Add fill legend title
+  theme_minimal() +
+  theme(  plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),  # Center and enlarge the title
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),  # Rotate x-axis labels and adjust size
+    axis.text.y = element_text(size = 12),  # Adjust y-axis text size
+    axis.title = element_text(size = 14), # Adjust axis title size
+    legend.position = "bottom", # Move the legend to the bottom
+    legend.title = element_text(size = 12), # Adjust legend title size
+    legend.text = element_text(size = 10) # Adjust legend text size
+  )
+
+ggsave("Comparison_of_Impact_of_Fathers_Education_on_Student_Performance.png", width = 12, height = 8, dpi = 300, bg = "white")
+
+
+############################################################################################################################
+############################################################################################################################
+############################################################################################################################
+############################################################################################################################
+############################################################################################################################
+############################################################################################################################
+############################################################################################################################
+############################################################################################################################
+
+#the dataset i fount is from https://www.imf.org/en/Publications/WEO/weo-database/2018/October/download-entire-database
+
+data2<- read.csv("D:/analytics practicum 2/pisa2018/data2.csv", sep = ";")
+head(data2)
+head(data2)
+colnames(data2)
+str(data2)
+data2_selected <- data2[, c("Country", "Subject.Descriptor", "X2018")]
+str(data2_selected)
+data2_selected$X2018 <- as.numeric(gsub(",", "", data2_selected$X2018))
+sum(is.na(data2_selected$X2018))
+str(data2_selected)
+unique(data_clean$Country)
+unique(data2_selected$Country)
+
+
+
+# Create a mapping vector for country names from WEO to PISA
+country_name_map <- c("Hong Kong SAR" = "Hong Kong",
+                      "Macao SAR" = "Macao",
+                      "Slovak Republic" = "Slovakia",
+                      "United States" = "United States of America",
+                      "Russian Federation" = "Russia",
+                      "Korea" = "South Korea", # if South Korea, change accordingly
+                      "FYR Macedonia" = "North Macedonia")
+
+# Replace WEO country names using the mapping
+data2_selected$Country <- ifelse(data2_selected$Country %in% names(country_name_map),
+                                 country_name_map[data2_selected$Country],
+                                 data2_selected$Country)
+
+
+#
+# Merging the datasets and keep it
+#merged_data <- merge(data_clean, data2_selected, by.x = "Country", by.y = "Country", all.x = TRUE)
+#merged_data <- merged_data[!is.na(merged_data$X2018), ]
+# install.packages("data.table")
+#library(data.table)
+#output_file_path <- "merged_data.csv"
+#fwrite(merged_data, output_file_path)
+#cat("The merged data has been saved to", output_file_path, "\n")
+
+
+
+output_file_path <- "D:/analytics practicum 2/pisa2018/merged_data.csv"
+merged_data <- read.csv(output_file_path)
+summary(merged_data$X2018)
+head(merged_data)
+str(merged_data)
+
+IQR_X2018 <- IQR(merged_data$X2018)
+lower_bound <- quantile(merged_data$X2018, 0.25) - 1.5 * IQR_X2018
+upper_bound <- quantile(merged_data$X2018, 0.75) + 1.5 * IQR_X2018
+
+paste("Lower bound for outliers:", lower_bound)
+paste("Upper bound for outliers:", upper_bound)
+
+
+#_______________________________________________________________
+library(scales)
+
+# Select the countries to compare
+selected_countries <- c("Greece", "Italy","Germany", "Sweden", "Turkey", "Denmark", "Spain", "France")
+
+# Filter the data for the selected countries
+filtered_data <- merged_data %>%
+  filter(Country %in% selected_countries) %>%
+  filter(Subject.Descriptor == "Gross domestic product per capita, constant prices") %>%
+  select(Country, MathScore, ReadingScore, ScienceScore, X2018)
+
+# Calculate average scores and GDP per capita for each country
+average_scores <- filtered_data %>%
+  group_by(Country) %>%
+  summarise(
+    AvgMathScore = mean(MathScore, na.rm = TRUE),
+    AvgReadingScore = mean(ReadingScore, na.rm = TRUE),
+    AvgScienceScore = mean(ScienceScore, na.rm = TRUE),
+    GDPPerCapita = mean(X2018, na.rm = TRUE)
+  )
+
+# Create the bubble plot
+bubble_plot <- ggplot(average_scores, aes(x = GDPPerCapita, y = AvgMathScore, size = AvgReadingScore, color = Country, label = Country)) +
+  geom_point(alpha = 0.7) +  # Increase transparency of the points
+  scale_size(range = c(3, 15)) +  # Adjust the size range of the bubbles
+  scale_color_manual(values = c("Greece" = "cyan", "Italy" = "green",  "Germany" = "orange",
+                                "Sweden" = "purple", "Turkey" ="pink" , "Denmark" = "brown", "Spain" = "yellow",
+                                "France" = "blue")) +
+  scale_x_log10(labels = scales::comma) +  # Use a logarithmic scale for the x-axis and format labels
+  geom_text(vjust = 1.5, color = "black", size = 3) +  # Add country names as labels
+  labs(
+    title = "Relationship between GDP per Capita and Average Math Scores",
+    x = "GDP per Capita (constant prices, 2018, log scale)",
+    y = "Average Math Score"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",  # Remove legends
+    plot.title = element_text(hjust = 0.5, size = 14),
+    axis.title = element_text(size = 12),
+    axis.text.x = element_text(size = 10, angle = 45, hjust = 1),  # Ensure x-axis labels are readable
+    axis.text.y = element_text(size = 10)
+  ) +
+  scale_x_continuous(labels = comma)  # Display all the numbers on x-axis
+
+bubble_plot
+
+# Save the plot
+ggsave("bubble_plot_selected_countries_no_legend.png", plot = bubble_plot, width = 12, height = 8, dpi = 300, bg = "white")
+#______________________________________________________________________________________________________________________________________
+
+
+
+# Bubble plot for Reading Scores
+bubble_plot_reading <- ggplot(average_scores, aes(x = GDPPerCapita, y = AvgReadingScore, size = AvgReadingScore, color = Country, label = Country)) +
+  geom_point(alpha = 0.7) +
+  scale_size(range = c(3, 15)) +
+  scale_color_manual(values = c("Greece" = "cyan", "Italy" = "green",  "Germany" = "orange",
+                                "Sweden" = "purple", "Turkey" = "pink", "Denmark" = "brown", "Spain" = "yellow",
+                                "France" = "blue")) +
+  scale_x_log10(labels = scales::comma) +
+  geom_text(vjust = 1.5, color = "black", size = 3) +
+  labs(
+    title = "Relationship between GDP per Capita and Average Reading Scores",
+    x = "GDP per Capita (constant prices, 2018, log scale)",
+    y = "Average Reading Score"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(hjust = 0.5, size = 14),
+    axis.title = element_text(size = 12),
+    axis.text.x = element_text(size = 10, angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 10)
+  ) +
+  scale_x_continuous(labels = comma)
+
+bubble_plot_reading
+
+# Save the plot
+ggsave("bubble_plot_reading_scores.png", plot = bubble_plot_reading, width = 12, height = 8, dpi = 300, bg = "white")
+#__________________________________________________________________________________________________________________________________
+
+# Bubble plot for Science Scores
+bubble_plot_science <- ggplot(average_scores, aes(x = GDPPerCapita, y = AvgScienceScore, size = AvgReadingScore, color = Country, label = Country)) +
+  geom_point(alpha = 0.7) +
+  scale_size(range = c(3, 15)) +
+  scale_color_manual(values = c("Greece" = "cyan", "Italy" = "green",  "Germany" = "orange",
+                                "Sweden" = "purple", "Turkey" = "pink", "Denmark" = "brown", "Spain" = "yellow",
+                                "France" = "blue")) +
+  scale_x_log10(labels = scales::comma) +
+  geom_text(vjust = 1.5, color = "black", size = 3) +
+  labs(
+    title = "Relationship between GDP per Capita and Average Science Scores",
+    x = "GDP per Capita (constant prices, 2018, log scale)",
+    y = "Average Science Score"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(hjust = 0.5, size = 14),
+    axis.title = element_text(size = 12),
+    axis.text.x = element_text(size = 10, angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 10)
+  ) +
+  scale_x_continuous(labels = comma)
+
+bubble_plot_science
+
+# Save the plot
+ggsave("bubble_plot_science_scores.png", plot = bubble_plot_science, width = 12, height = 8, dpi = 300, bg = "white")
+
+#__________________________________________________________________________________________________________________________________
+#__________________________________________________________________________________________________________________________________
+
+desired_levels <- c("ISCED level 3A", "ISCED level 1", "ISCED level 2", "ISCED level 3B, 3C", "She did not complete  ISCED level 1")
+
+mother_education_scores <- merged_data %>%
+  filter(Country %in% selected_countries, !is.na(MotherEducation), MotherEducation %in% desired_levels) %>%
+  group_by(Country, MotherEducation) %>%
+  summarise(
+    AvgMathScore = mean(MathScore, na.rm = TRUE),
+    GDPPerCapita = mean(X2018, na.rm = TRUE), # Corrected to use 'X2018' instead of 'GDP'
+    .groups = 'drop'
+  )
+
+if (nrow(mother_education_scores) == 0) {
+  stop("No data available for the specified education levels.")
+}
+
+mother_education_scores
+
+my_labeller <- as_labeller(c(
+  "ISCED level 3A" = "ISCED level 3A",
+  "ISCED level 1" = "ISCED level 1",
+  "ISCED level 2" = "ISCED level 2",
+  "ISCED level 3B, 3C" = "ISCED level 3B, 3C",
+  "She did not complete  ISCED level 1" = "She did not complete ISCED level 1"
+))
+
+scatter_plot_mother_edu <- ggplot(mother_education_scores, aes(x = GDPPerCapita, y = AvgMathScore, color = Country)) +
+  geom_point(size = 4, alpha = 0.7) +
+  scale_color_manual(values = c("Greece" = "cyan", "Italy" = "green", "Germany" = "orange",
+                                "Sweden" = "purple", "Turkey" = "pink", "Denmark" = "brown", "Spain" = "yellow",
+                                "France" = "blue")) +
+  scale_x_log10(labels = scales::comma) +
+  labs(
+    title = "Relationship between GDP per Capita and Average Math Scores by Mother's Education",
+    x = "GDP per Capita (constant prices, 2018, log scale)",
+    y = "Average Math Score"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 14),
+    axis.title = element_text(size = 12),
+    axis.text.x = element_text(size = 10, angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 10),
+    panel.border = element_rect(colour = "black", fill=NA, size=1)
+  ) +
+  facet_wrap(~MotherEducation, scales = "free", labeller = my_labeller)  # Use custom labeller
+
+scatter_plot_mother_edu
+
+ggsave("scatter_plot_mother_education_facet.png", plot = scatter_plot_mother_edu, width = 12, height = 8, dpi = 300, bg = "white")
+
+
+#________________________________________________________________________________________________________________________________________
+
+# Filter the data for "He did not complete ISCED level 1" before summarizing
+filtered_data_check <- merged_data %>%
+  filter(Country %in% selected_countries, !is.na(FatherEducation), FatherEducation == "He did not complete ISCED level 1")
+
+# Print the filtered data to check for presence
+filtered_data_check
+
+# Define the desired education levels for fathers
+desired_levels_father <- c("ISCED level 3A", "ISCED level 1", "ISCED level 2", "ISCED level 3B, 3C", "He did not complete ISCED level 1")
+
+# Calculate average scores and GDP per capita for each father's education level
+father_education_scores <- merged_data %>%
+  filter(Country %in% selected_countries, !is.na(FatherEducation), FatherEducation %in% desired_levels_father) %>%
+  group_by(Country, FatherEducation) %>%
+  summarise(
+    AvgMathScore = mean(MathScore, na.rm = TRUE),
+    GDPPerCapita = mean(X2018, na.rm = TRUE), # Corrected to use 'X2018' instead of 'GDP'
+    .groups = 'drop'
+  )
+
+# Check if there is any data left after filtering
+if (nrow(father_education_scores) == 0) {
+  stop("No data available for the specified education levels.")
+}
+
+# Print the filtered data to verify
+print(father_education_scores)
+
+# Verify presence of data points for "He did not complete ISCED level 1"
+filtered_data_check <- merged_data %>%
+  filter(Country %in% selected_countries, !is.na(FatherEducation), FatherEducation == "He did not complete ISCED level 1")
+
+# Print the filtered data to check for presence
+print(filtered_data_check)
+
+# Custom labeller function to handle missing or unclear labels
+my_labeller_father <- as_labeller(c(
+  "ISCED level 3A" = "ISCED level 3A",
+  "ISCED level 1" = "ISCED level 1",
+  "ISCED level 2" = "ISCED level 2",
+  "ISCED level 3B, 3C" = "ISCED level 3B, 3C",
+  "He did not complete ISCED level 1" = "He did not complete ISCED level 1"
+))
+
+# Scatter plot for Father's Education Level (GDP per Capita vs. Average Math Scores)
+scatter_plot_father_edu <- ggplot(father_education_scores, aes(x = GDPPerCapita, y = AvgMathScore, color = Country)) +
+  geom_point(size = 4, alpha = 0.7) +
+  scale_color_manual(values = c("Greece" = "cyan", "Italy" = "green", "Germany" = "orange",
+                                "Sweden" = "purple", "Turkey" = "pink", "Denmark" = "brown", "Spain" = "yellow",
+                                "France" = "blue")) +
+  scale_x_log10(labels = scales::comma) +
+  labs(
+    title = "Relationship between GDP per Capita and Average Math Scores by Father's Education",
+    x = "GDP per Capita (constant prices, 2018, log scale)",
+    y = "Average Math Score"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 14),
+    axis.title = element_text(size = 12),
+    axis.text.x = element_text(size = 10, angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 10),
+    panel.border = element_rect(colour = "black", fill=NA, size=1)
+  ) +
+  facet_wrap(~FatherEducation, scales = "free", labeller = my_labeller_father)  # Use custom labeller
+
+scatter_plot_father_edu
+
+# Save the plot
+ggsave("scatter_plot_father_education_facet.png", plot = scatter_plot_father_edu, width = 12, height = 8, dpi = 300, bg = "white")
+
+unique_father_education_levels <- unique(merged_data$FatherEducation)
+unique_father_education_levels
+
+#_______________________________________________________________________________________________________________________________________
+#_______________________________________________________________________________________________________________________________________
+
+
+desired_levels <- c("ISCED level 3A", "ISCED level 1", "ISCED level 2", "ISCED level 3B, 3C", "She did not complete ISCED level 1")
+
+mother_education_reading_scores <- merged_data %>%
+  filter(Country %in% selected_countries, !is.na(MotherEducation), MotherEducation %in% desired_levels) %>%
+  group_by(Country, MotherEducation) %>%
+  summarise(
+    AvgReadingScore = mean(ReadingScore, na.rm = TRUE),
+    GDPPerCapita = mean(X2018, na.rm = TRUE),
+    .groups = 'drop'
+  )
+
+if (nrow(mother_education_reading_scores) == 0) {
+  stop("No data available for the specified education levels.")
+}
+
+mother_education_reading_scores
+
+my_labeller <- as_labeller(c(
+  "ISCED level 3A" = "ISCED level 3A",
+  "ISCED level 1" = "ISCED level 1",
+  "ISCED level 2" = "ISCED level 2",
+  "ISCED level 3B, 3C" = "ISCED level 3B, 3C",
+  "She did not complete ISCED level 1" = "She did not complete ISCED level 1"
+))
+
+scatter_plot_mother_edu_reading <- ggplot(mother_education_reading_scores, aes(x = GDPPerCapita, y = AvgReadingScore, color = Country)) +
+  geom_point(size = 4, alpha = 0.7) +
+  scale_color_manual(values = c("Greece" = "cyan", "Italy" = "green", "Germany" = "orange",
+                                "Sweden" = "purple", "Turkey" = "pink", "Denmark" = "brown", "Spain" = "yellow",
+                                "France" = "blue")) +
+  scale_x_log10(labels = scales::comma) +
+  labs(
+    title = "Relationship between GDP per Capita and Average Reading Scores by Mother's Education",
+    x = "GDP per Capita (constant prices, 2018, log scale)",
+    y = "Average Reading Score"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 14),
+    axis.title = element_text(size = 12),
+    axis.text.x = element_text(size = 10, angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 10),
+    panel.border = element_rect(colour = "black", fill=NA, size=1)
+  ) +
+  facet_wrap(~MotherEducation, scales = "free", labeller = my_labeller)  # Use custom labeller
+
+scatter_plot_mother_edu_reading
+
+ggsave("scatter_plot_mother_education_reading_facet.png", plot = scatter_plot_mother_edu_reading, width = 12, height = 8, dpi = 300, bg = "white")
+#_____________________________________________________________________________________________________________________________________________
+
+desired_levels_father <- c("ISCED level 3A", "ISCED level 1", "ISCED level 2", "ISCED level 3B, 3C", "He did not complete ISCED level 1")
+
+# Calculate average reading scores and GDP per capita for each father's education level
+father_education_reading_scores <- merged_data %>%
+  filter(Country %in% selected_countries, !is.na(FatherEducation), FatherEducation %in% desired_levels_father) %>%
+  group_by(Country, FatherEducation) %>%
+  summarise(
+    AvgReadingScore = mean(ReadingScore, na.rm = TRUE),
+    GDPPerCapita = mean(X2018, na.rm = TRUE),
+    .groups = 'drop'
+  )
+
+# Check if there is any data left after filtering
+if (nrow(father_education_reading_scores) == 0) {
+  stop("No data available for the specified education levels.")
+}
+
+father_education_reading_scores
+
+# Custom labeller function to handle missing or unclear labels
+my_labeller_father <- as_labeller(c(
+  "ISCED level 3A" = "ISCED level 3A",
+  "ISCED level 1" = "ISCED level 1",
+  "ISCED level 2" = "ISCED level 2",
+  "ISCED level 3B, 3C" = "ISCED level 3B, 3C",
+  "He did not complete ISCED level 1" = "He did not complete ISCED level 1"
+))
+
+
+scatter_plot_father_edu_reading <- ggplot(father_education_reading_scores, aes(x = GDPPerCapita, y = AvgReadingScore, color = Country)) +
+  geom_point(size = 4, alpha = 0.7) +
+  scale_color_manual(values = c("Greece" = "cyan", "Italy" = "green", "Germany" = "orange",
+                                "Sweden" = "purple", "Turkey" = "pink", "Denmark" = "brown", "Spain" = "yellow",
+                                "France" = "blue")) +
+  scale_x_log10(labels = scales::comma) +
+  labs(
+    title = "Relationship between GDP per Capita and Average Reading Scores by Father's Education",
+    x = "GDP per Capita (constant prices, 2018, log scale)",
+    y = "Average Reading Score"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 14),
+    axis.title = element_text(size = 12),
+    axis.text.x = element_text(size = 10, angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 10),
+    panel.border = element_rect(colour = "black", fill=NA, size=1)
+  ) +
+  facet_wrap(~FatherEducation, scales = "free", labeller = my_labeller_father)  # Use custom labeller
+
+scatter_plot_father_edu_reading
+
+
+ggsave("scatter_plot_father_education_reading_facet.png", plot = scatter_plot_father_edu_reading, width = 12, height = 8, dpi = 300, bg = "white")
+
+##################################################################################################################################################
+######################################################################################################################################################
+#####################################################################################################################################################
+
+
